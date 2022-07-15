@@ -472,11 +472,17 @@ public class LoadBalancerContext implements IClientConfigAware {
         // Various Supported Cases
         // The loadbalancer to use and the instances it has is based on how it was registered
         // In each of these cases, the client might come in using Full Url or Partial URL
+        /**
+         * 默认的ILoadBalancer为ZoneAwareLoadBalancer对象，通过RibbonClientConfiguration注入到spring容器中
+         */
         ILoadBalancer lb = getLoadBalancer();
         if (host == null) {
             // Partial URI or no URI Case
             // well we have to just get the right instances from lb - or we fall back
             if (lb != null){
+                /**
+                 * 通过LoadBalancer选择一个server服务实例
+                 */
                 Server svc = lb.chooseServer(loadBalancerKey);
                 if (svc == null){
                     throw new ClientException(ClientException.ErrorType.GENERAL,
@@ -568,6 +574,7 @@ public class LoadBalancerContext implements IClientConfigAware {
         return new Server(host, port);
     }
 
+    //RibbonLoadBalancerClient的reconstructURI方法中会调用到下面这个方法
     public URI reconstructURIWithServer(Server server, URI original) {
         String host = server.getHost();
         int port = server.getPort();
@@ -602,6 +609,7 @@ public class LoadBalancerContext implements IClientConfigAware {
             if (!Strings.isNullOrEmpty(original.getRawFragment())) {
                 sb.append("#").append(original.getRawFragment());
             }
+            //返回一个由ip和port组成的URI
             URI newURI = new URI(sb.toString());
             return newURI;            
         } catch (URISyntaxException e) {

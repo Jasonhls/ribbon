@@ -51,6 +51,8 @@ For each request, the steps above will be repeated. That is to say, each zone re
  * @author awang
  *
  * @param <T>
+ * 主要重写了DynamicServerListLoadBalancer的chooseServer方法，由于DynamicServerListLoadBalancer中负载均衡的策略依然是BaseLoadBalancer中的
+ * 线性轮询策略，这种策略不具备区域感知功能。
  */
 public class ZoneAwareLoadBalancer<T extends Server> extends DynamicServerListLoadBalancer<T> {
 

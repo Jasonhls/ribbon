@@ -40,7 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * meet the desired criteria.
  * 
  * @author stonse
- * 
+ * 主要是实现了服务实例清单在运行期间的动态更新能力，同时提供了对服务实例清单的过滤功能
+ *
  */
 public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBalancer {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamicServerListLoadBalancer.class);
@@ -69,7 +70,7 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
     }
 
     @Deprecated
-    public DynamicServerListLoadBalancer(IClientConfig clientConfig, IRule rule, IPing ping, 
+    public DynamicServerListLoadBalancer(IClientConfig clientConfig, IRule rule, IPing ping,
             ServerList<T> serverList, ServerListFilter<T> filter) {
         this(
                 clientConfig,
@@ -138,8 +139,16 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
         boolean primeConnection = this.isEnablePrimingConnections();
         // turn this off to avoid duplicated asynchronous priming done in BaseLoadBalancer.setServerList()
         this.setEnablePrimingConnections(false);
+        /**
+         * ribbon客户端，默认情况下每隔30秒从注册中心拉取一次配置，然后更新本地缓存，
+         * 使用的是周期性线程池去注册中心拉取服务列表
+         * 1.开启定时器
+         */
         enableAndInitLearnNewServersFeature();
 
+        /**
+         * 2.更新服务列表
+         */
         updateListOfServers();
         if (primeConnection && this.getPrimeConnections() != null) {
             this.getPrimeConnections()
@@ -152,6 +161,7 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
     
     @Override
     public void setServersList(List lsrv) {
+        //调用父类BaseLoadBalancer方法
         super.setServersList(lsrv);
         List<T> serverList = (List<T>) lsrv;
         Map<String, List<Server>> serversInZones = new HashMap<String, List<Server>>();
@@ -236,6 +246,10 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
     public void updateListOfServers() {
         List<T> servers = new ArrayList<T>();
         if (serverListImpl != null) {
+            /**
+             * 1.获取服务列表，这里的serverListImpl默认为ConfigurationBasedServerList对象，
+             * 如果使用了eureka等注册中心，这里的serverListImpl就是其他对象
+             */
             servers = serverListImpl.getUpdatedListOfServers();
             LOGGER.debug("List of Servers for {} obtained from Discovery client: {}",
                     getIdentifier(), servers);
@@ -246,6 +260,10 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
                         getIdentifier(), servers);
             }
         }
+        /**
+         * 2.更新服务列表
+         */
+        lastUpdated.set(System.currentTimeMillis());
         updateAllServerList(servers);
     }
 

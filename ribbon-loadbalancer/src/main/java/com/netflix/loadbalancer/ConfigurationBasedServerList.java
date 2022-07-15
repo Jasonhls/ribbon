@@ -46,6 +46,7 @@ public class ConfigurationBasedServerList extends AbstractServerList<Server>  {
 
 	@Override
 	public List<Server> getUpdatedListOfServers() {
+		//从配置文件中获取服务列表，即通过 *.ribbon.listOfServers配置的静态服务列表
         String listOfServers = clientConfig.get(CommonClientConfigKey.ListOfServers);
         return derive(listOfServers);
 	}

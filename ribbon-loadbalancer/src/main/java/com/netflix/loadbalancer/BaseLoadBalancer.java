@@ -68,8 +68,10 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
 
     protected IRule rule = DEFAULT_RULE;
 
+    //定义了一个IPingStrategy，用来描述服务检查策略，IPingStrategy默认采用了SeialPingStrategy实现
     protected IPingStrategy pingStrategy = DEFAULT_PING_STRATEGY;
 
+    //通过RibbonClientConfiguration注入进来的IPing默认是DummyPing对象
     protected IPing ping = null;
 
     @Monitor(name = PREFIX + "AllServerList", type = DataSourceType.INFORMATIONAL)
@@ -139,12 +141,12 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
             IPing ping) {
         this(name, rule, stats, ping, DEFAULT_PING_STRATEGY);
     }
-    
+
     public BaseLoadBalancer(String name, IRule rule, LoadBalancerStats stats,
             IPing ping, IPingStrategy pingStrategy) {
-	
+
         logger.debug("LoadBalancer [{}]:  initialized", name);
-        
+
         this.name = name;
         this.ping = ping;
         this.pingStrategy = pingStrategy;
@@ -165,13 +167,16 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
     void initWithConfig(IClientConfig clientConfig, IRule rule, IPing ping) {
         initWithConfig(clientConfig, rule, ping, createLoadBalancerStatsFromConfig(config, ClientFactory::instantiateInstanceWithClientConfig));
     }
-    
+
     void initWithConfig(IClientConfig clientConfig, IRule rule, IPing ping, LoadBalancerStats stats) {
         this.config = clientConfig;
         this.name = clientConfig.getClientName();
         int pingIntervalTime = clientConfig.get(CommonClientConfigKey.NFLoadBalancerPingInterval, 30);
         int maxTotalPingTime = clientConfig.get(CommonClientConfigKey.NFLoadBalancerMaxTotalPingTime, 2);
 
+        /**
+         * 这里会调用setupPingTask方法，会定时去检查服务是否还在线
+         */
         setPingInterval(pingIntervalTime);
         setMaxTotalPingTime(maxTotalPingTime);
 
@@ -272,6 +277,9 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
         }
         lbTimer = new ShutdownEnabledTimer("NFLoadBalancer-PingTimer-" + name,
                 true);
+        /**
+         * PingTask用来检查Server是否有效，默认执行时间间隔为10秒
+         */
         lbTimer.schedule(new PingTask(), 0, pingIntervalSeconds * 1000);
         forceQuickPing();
     }
@@ -329,6 +337,9 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
             logger.debug("LoadBalancer [{}]:  pingIntervalSeconds set to {}",
         	    name, this.pingIntervalSeconds);
         }
+        /**
+         * 定时去检查服务是否还在线
+         */
         setupPingTask(); // since ping data changed
     }
 
@@ -429,6 +440,7 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
      * Add a list of servers to the 'allServer' list; does not verify
      * uniqueness, so you could give a server a greater share by adding it more
      * than once
+     * 向负载均衡器中添加一个新的服务实例列表
      */
     @Override
     public void addServers(List<Server> newServers) {
@@ -480,7 +492,7 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
     public void setServersList(List lsrv) {
         Lock writeLock = allServerLock.writeLock();
         logger.debug("LoadBalancer [{}]: clearing server list (SET op)", name);
-        
+
         ArrayList<Server> newServers = new ArrayList<Server>();
         writeLock.lock();
         try {
@@ -507,6 +519,9 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
             boolean listChanged = false;
             if (!allServerList.equals(allServers)) {
                 listChanged = true;
+                /**
+                 * 这里会遍历changeListener集合，因此可以通过实现ServerListChangeListener接口，获取服务上下线的通知
+                 */
                 if (changeListeners != null && changeListeners.size() > 0) {
                    List<Server> oldList = ImmutableList.copyOf(allServerList);
                    List<Server> newList = ImmutableList.copyOf(allServers);                   
@@ -656,10 +671,10 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
         }
 
         public void runPinger() throws Exception {
-            if (!pingInProgress.compareAndSet(false, true)) { 
+            if (!pingInProgress.compareAndSet(false, true)) {
                 return; // Ping in progress - nothing to do
             }
-            
+
             // we are "in" - we get to Ping
 
             Server[] allServers = null;
@@ -693,7 +708,7 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
 
                     if (oldIsAlive != isAlive) {
                         changedServers.add(svr);
-                        logger.debug("LoadBalancer [{}]:  Server [{}] status changed to {}", 
+                        logger.debug("LoadBalancer [{}]:  Server [{}] status changed to {}",
                     		name, svr.getId(), (isAlive ? "ALIVE" : "DEAD"));
                     }
 
@@ -743,6 +758,10 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
             return null;
         } else {
             try {
+                /**
+                 * 负载均衡的核心方法，调用IRule中的choose方法来找到一个具体的服务实例，默认实现是RoundRobinRule
+                 * RibbonLoadBalancerClient的execute方法中，默认的IRule就是ZoneAvoidanceRule，会走到RoundRobinRule对象的choose方法
+                 */
                 return rule.choose(key);
             } catch (Exception e) {
                 logger.warn("LoadBalancer [{}]:  Error choosing server for key {}", name, key, e);
@@ -766,6 +785,9 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
         }
     }
 
+    /**
+     * 用来标记一个服务是否有效，标记方式为调用Server对象的setAlive方法设置isAliveFlag属性为false
+     */
     public void markServerDown(Server server) {
         if (server == null || !server.isAlive()) {
             return;
@@ -819,7 +841,7 @@ public class BaseLoadBalancer extends AbstractLoadBalancer implements
             return;
         }
         logger.debug("LoadBalancer [{}]:  forceQuickPing invoking", name);
-        
+
         try {
         	new Pinger(pingStrategy).runPinger();
         } catch (Exception e) {
