@@ -85,6 +85,7 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
     public DynamicServerListLoadBalancer(IClientConfig clientConfig, IRule rule, IPing ping,
                                          ServerList<T> serverList, ServerListFilter<T> filter,
                                          ServerListUpdater serverListUpdater) {
+        //调用父类BaseLoadBalancer的构造器
         super(clientConfig, rule, ping);
         this.serverListImpl = serverList;
         this.filter = filter;
@@ -92,6 +93,7 @@ public class DynamicServerListLoadBalancer<T extends Server> extends BaseLoadBal
         if (filter instanceof AbstractServerListFilter) {
             ((AbstractServerListFilter) filter).setLoadBalancerStats(getLoadBalancerStats());
         }
+        //关键方法
         restOfInit(clientConfig);
     }
 
