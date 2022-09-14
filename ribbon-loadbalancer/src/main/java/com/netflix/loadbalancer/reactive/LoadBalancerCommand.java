@@ -181,6 +181,10 @@ public class LoadBalancerCommand<T> {
             @Override
             public void call(Subscriber<? super Server> next) {
                 try {
+                    /**
+                     * 这里的loadBalancerContext是前面创建LoadBalancerCommand的时候传来的FeignLoadBalancer对象，
+                     * 该对象的属性ILoadBalancer为ZoneAwareLoadBalancer
+                     */
                     Server server = loadBalancerContext.getServerFromLoadBalancer(loadBalancerURI, loadBalancerKey);   
                     next.onNext(server);
                     next.onCompleted();
@@ -272,7 +276,10 @@ public class LoadBalancerCommand<T> {
         final int maxRetrysNext = retryHandler.getMaxRetriesOnNextServer();
 
         // Use the load balancer
-        Observable<T> o = 
+        Observable<T> o =
+                /**
+                 * 如果这里server为空，就执行selectServer()方法，通过负载均衡获取服务server
+                 */
                 (server == null ? selectServer() : Observable.just(server))
                 .concatMap(new Func1<Server, Observable<T>>() {
                     @Override

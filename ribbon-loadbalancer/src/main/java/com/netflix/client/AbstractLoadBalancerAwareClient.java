@@ -91,9 +91,13 @@ public abstract class AbstractLoadBalancerAwareClient<S extends ClientRequest, T
      * URI which does not contain the host name or the protocol.
      */
     public T executeWithLoadBalancer(final S request, final IClientConfig requestConfig) throws ClientException {
+        //构建LoadBalancerCommand对象
         LoadBalancerCommand<T> command = buildLoadBalancerCommand(request, requestConfig);
 
         try {
+            /**
+             * submit是核心方法
+             */
             return command.submit(
                 new ServerOperation<T>() {
                     @Override
@@ -126,6 +130,7 @@ public abstract class AbstractLoadBalancerAwareClient<S extends ClientRequest, T
     protected LoadBalancerCommand<T> buildLoadBalancerCommand(final S request, final IClientConfig config) {
 		RequestSpecificRetryHandler handler = getRequestSpecificRetryHandler(request, config);
 		LoadBalancerCommand.Builder<T> builder = LoadBalancerCommand.<T>builder()
+                //这里把this（即FeignLoadBalancer对象）赋值给新创建的LoadBalancerCommand对象的属性LoadBalancerContext
 				.withLoadBalancerContext(this)
 				.withRetryHandler(handler)
 				.withLoadBalancerURI(request.getUri());

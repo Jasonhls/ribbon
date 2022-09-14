@@ -474,6 +474,7 @@ public class LoadBalancerContext implements IClientConfigAware {
         // In each of these cases, the client might come in using Full Url or Partial URL
         /**
          * 默认的ILoadBalancer为ZoneAwareLoadBalancer对象，通过RibbonClientConfiguration注入到spring容器中
+         * 当前的this为FeignLoadBalancer对象，该对象的属性ILoadBalancer默认为ZoneAwareLoadBalancer对象。
          */
         ILoadBalancer lb = getLoadBalancer();
         if (host == null) {
@@ -481,7 +482,7 @@ public class LoadBalancerContext implements IClientConfigAware {
             // well we have to just get the right instances from lb - or we fall back
             if (lb != null){
                 /**
-                 * 通过LoadBalancer选择一个server服务实例
+                 * 通过LoadBalancer选择一个server服务实例，比如这里的lb为ZoneAwareLoadBalancer对象
                  */
                 Server svc = lb.chooseServer(loadBalancerKey);
                 if (svc == null){
